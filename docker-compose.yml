@@ -1,0 +1,81 @@
+services:
+  signal-backend:
+    image: bbernhard/signal-cli-rest-api:latest
+    container_name: signal-backend
+    restart: unless-stopped
+    environment:
+      # json-rpc mode runs signal-cli as a persistent daemon and exposes the
+      # WebSocket receive stream our receiver subscribes to.
+      - MODE=json-rpc
+    volumes:
+      - signal-cli-data:/home/.local/share/signal-cli
+    expose:
+      - "8080"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    networks:
+      - signal-internal
+      - traefik
+
+  signal-mcp:
+    image: ghcr.io/mbay-odw/signal-mcp-server:latest
+    container_name: signal-mcp
+    restart: unless-stopped
+    depends_on:
+      - signal-backend
+    environment:
+      - LOG_LEVEL=INFO
+      - MCP_TRANSPORT=sse
+      - PORT=8000
+      - SIGNAL_NUMBER=${SIGNAL_NUMBER}
+      - SIGNAL_BACKEND_URL=http://signal-backend:8080
+      - SIGNAL_DB_PATH=/data/signal.db
+      - SIGNAL_ATTACHMENTS_DIR=/data/attachments
+      - MCP_API_KEY=${MCP_API_KEY}
+      - OIDC_INTROSPECTION_URL=${OIDC_INTROSPECTION_URL:-https://signal-mcp.${DOMAIN}/api/oidc/introspection}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-signal-mcp}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET}
+      - OAUTH_ISSUER=${OAUTH_ISSUER:-https://authelia.${DOMAIN}}
+      - MCP_SERVER_URL=${MCP_SERVER_URL:-https://signal-mcp.${DOMAIN}}
+    volumes:
+      - signal-mcp-store:/data
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      # Streamable-HTTP (current spec) — Claude.ai connects here first.
+      - "traefik.http.routers.signal-mcp.rule=Host(`signal-mcp.${DOMAIN}`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.signal-mcp.entrypoints=websecure"
+      - "traefik.http.routers.signal-mcp.service=signal-mcp-svc"
+      - "traefik.http.routers.signal-mcp.tls=true"
+      - "traefik.http.routers.signal-mcp.tls.certresolver=mydnschallenge"
+      - "traefik.http.routers.signal-mcp.middlewares=middlewares-rate-limit@file,middlewares-secure-headers@file"
+      # Classic SSE transport — fallback for older clients.
+      - "traefik.http.routers.signal-mcp-sse.rule=Host(`signal-mcp.${DOMAIN}`) && PathPrefix(`/sse`)"
+      - "traefik.http.routers.signal-mcp-sse.entrypoints=websecure"
+      - "traefik.http.routers.signal-mcp-sse.service=signal-mcp-svc"
+      - "traefik.http.routers.signal-mcp-sse.tls=true"
+      - "traefik.http.routers.signal-mcp-sse.tls.certresolver=mydnschallenge"
+      - "traefik.http.routers.signal-mcp-sse.middlewares=middlewares-rate-limit@file,middlewares-secure-headers@file"
+      - "traefik.http.routers.signal-mcp-msg.rule=Host(`signal-mcp.${DOMAIN}`) && PathPrefix(`/messages`)"
+      - "traefik.http.routers.signal-mcp-msg.entrypoints=websecure"
+      - "traefik.http.routers.signal-mcp-msg.service=signal-mcp-svc"
+      - "traefik.http.routers.signal-mcp-msg.tls=true"
+      - "traefik.http.routers.signal-mcp-msg.tls.certresolver=mydnschallenge"
+      - "traefik.http.routers.signal-mcp-msg.middlewares=middlewares-rate-limit@file,middlewares-secure-headers@file"
+      - "traefik.http.services.signal-mcp-svc.loadbalancer.server.port=8000"
+    networks:
+      - signal-internal
+      - traefik
+
+volumes:
+  signal-cli-data:
+  signal-mcp-store:
+
+networks:
+  signal-internal:
+    internal: true
+  traefik:
+    external: true

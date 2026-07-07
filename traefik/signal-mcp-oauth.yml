@@ -1,0 +1,47 @@
+# Traefik file-provider rule: serve Authelia's OIDC + discovery endpoints under
+# the signal-mcp host, so OIDC_INTROSPECTION_URL can be the EXTERNAL URL over
+# this host (https://signal-mcp.bay-ram.de/api/oidc/introspection) — required,
+# otherwise Authelia rejects with "invalid X-Forwarded-Proto 'http'".
+#
+# GOTCHA (from the wb-mcp/hero-mcp deploys): the OIDC + /.well-known routers
+# MUST carry the `set-authelia-host` middleware (sets Host -> authelia.bay-ram.de),
+# else Authelia returns HTTP 500 on discovery. `set-authelia-host` is defined
+# globally in rules/middleware.yml. Reconcile the exact `service: authelia-oidc`
+# definition + middleware names against the live hero-mcp-oauth.yml before deploy.
+
+http:
+  middlewares:
+    rewrite-authorize-signal:
+      replacePath:
+        path: "/api/oidc/authorization"
+
+  routers:
+    signal-mcp-authorize:
+      rule: "Host(`signal-mcp.bay-ram.de`) && PathPrefix(`/authorize`)"
+      entrypoints: [websecure]
+      service: authelia-oidc
+      middlewares: [set-authelia-host, rewrite-authorize-signal]
+      tls:
+        certResolver: mydnschallenge
+
+    signal-mcp-oidc:
+      rule: "Host(`signal-mcp.bay-ram.de`) && PathPrefix(`/api/oidc`)"
+      entrypoints: [websecure]
+      service: authelia-oidc
+      middlewares: [set-authelia-host]
+      tls:
+        certResolver: mydnschallenge
+
+    # NOTE: /.well-known is intentionally NOT routed here — the signal-mcp app
+    # serves /.well-known/oauth-protected-resource + oauth-authorization-server
+    # itself. Routing it to Authelia would shadow the protected-resource doc.
+
+    signal-mcp-consent:
+      rule: "Host(`signal-mcp.bay-ram.de`) && PathPrefix(`/consent`)"
+      entrypoints: [websecure]
+      service: authelia-oidc
+      middlewares: [set-authelia-host]
+      tls:
+        certResolver: mydnschallenge
+
+  # authelia-oidc service is defined centrally (shared, see hero-mcp-oauth.yml).
