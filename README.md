@@ -65,10 +65,14 @@ Your real number stays active; the server gets access to your existing chats.
 
 ### 2. Configure
 Copy `.env.example` → `.env` and fill in `DOMAIN`, `SIGNAL_NUMBER`, `MCP_API_KEY`,
-and the OIDC client secret. Add the Authelia OIDC client from
-`authelia/signal-mcp-client.yml` (then `docker restart authelia`). No Traefik
-file-provider rule is needed — the app serves `/.well-known` itself and
-introspects directly against `authelia.<DOMAIN>`.
+and the OIDC client secret. Then:
+- Add the Authelia OIDC client from `authelia/signal-mcp-client.yml`
+  (then `docker restart authelia`).
+- Install the Traefik rule `traefik/signal-mcp.yml` into Traefik's file-provider
+  rules dir. **Required** — in this homelab Traefik routes via file rules, not
+  docker labels (the docker provider doesn't pick up new containers), so the
+  compose `traefik.*` labels are inert. The rule sends app traffic to the
+  container and proxies the OIDC/discovery paths to Authelia.
 
 ### 3. Run
 
