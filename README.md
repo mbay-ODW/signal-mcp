@@ -64,9 +64,11 @@ curl -s 'http://signal-backend:8080/v1/qrcodelink?device_name=signal-mcp' -o qr.
 Your real number stays active; the server gets access to your existing chats.
 
 ### 2. Configure
-Copy `.env.example` → `.env` and fill in `SIGNAL_NUMBER`, `MCP_API_KEY`, and the
-OIDC client secret. See `authelia/signal-mcp-client.yml` and
-`traefik/signal-mcp-oauth.yml` for the reverse-proxy/OIDC wiring.
+Copy `.env.example` → `.env` and fill in `DOMAIN`, `SIGNAL_NUMBER`, `MCP_API_KEY`,
+and the OIDC client secret. Add the Authelia OIDC client from
+`authelia/signal-mcp-client.yml` (then `docker restart authelia`). No Traefik
+file-provider rule is needed — the app serves `/.well-known` itself and
+introspects directly against `authelia.<DOMAIN>`.
 
 ### 3. Run
 
