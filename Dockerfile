@@ -3,7 +3,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 RUN uv pip install --system \
-    "mcp[cli]>=1.6.0" \
+    "mcp[cli]>=1.6.0,<2" \
     "httpx>=0.28.1" \
     "requests>=2.32.3" \
     "uvicorn>=0.34.0" \
