@@ -53,15 +53,18 @@ def list_chats(
 ) -> list[dict]:
     conn = get_conn(DB_PATH)
     try:
-        parts = [
-            "SELECT c.jid, c.name, c.is_group, c.last_message_time, "
-            "m.content, m.sender, m.is_from_me FROM chats c"
-        ]
         if include_last_message:
-            parts.append(
+            parts = [
+                "SELECT c.jid, c.name, c.is_group, c.last_message_time, "
+                "m.content, m.sender, m.is_from_me FROM chats c "
                 "LEFT JOIN messages m ON c.jid = m.chat_jid "
                 "AND c.last_message_time = m.timestamp"
-            )
+            ]
+        else:
+            parts = [
+                "SELECT c.jid, c.name, c.is_group, c.last_message_time, "
+                "NULL, NULL, NULL FROM chats c"
+            ]
         params: list[Any] = []
         if query:
             parts.append("WHERE (LOWER(c.name) LIKE LOWER(?) OR c.jid LIKE ?)")
