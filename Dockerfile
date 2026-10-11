@@ -1,4 +1,6 @@
 FROM python:3.12-slim
+# Docker-Secrets: NAME_FILE=/run/secrets/... wird beim Start zu NAME geladen
+COPY --chmod=0755 env-secrets.sh /usr/local/bin/env-secrets
 WORKDIR /app
 
 RUN pip install --no-cache-dir uv
@@ -19,4 +21,5 @@ ENV SIGNAL_DB_PATH=/data/signal.db
 ENV SIGNAL_ATTACHMENTS_DIR=/data/attachments
 
 EXPOSE 8000
+ENTRYPOINT ["/usr/local/bin/env-secrets"]
 CMD ["python", "main.py"]
