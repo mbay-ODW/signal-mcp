@@ -11,12 +11,27 @@ introspection, plus the RFC 9728/8414 OAuth discovery endpoints Claude.ai needs.
 import base64
 from typing import Any, Dict, List, Optional
 
-from mcp.server.fastmcp import FastMCP, Image
+from mcp.server import MCPServer
+from mcp.server.mcpserver import Image
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
+import logging
 import signal_backend
 import signal_store
 
-mcp = FastMCP("signal")
+class KlartextServer(MCPServer):
+    """mcp 2.x verbirgt den Text unerwarteter Exceptions vor dem Client ("Error executing tool X").
+    Die Tools hier melden ihre Fehler so ans Modell, daher bleibt der Text wie in mcp 1.x erhalten."""
+
+    async def call_tool(self, name, arguments, context=None):  # type: ignore[no-untyped-def]
+        try:
+            return await super().call_tool(name, arguments, context)
+        except UnexpectedToolError as exc:
+            logging.getLogger("mcp.server.mcpserver").exception("Tool %r raised an unexpected exception", name)
+            raise ToolError(f"{exc}: {exc.__cause__}") from exc.__cause__
+
+
+mcp = KlartextServer("signal")
 
 
 # --------------------------------------------------------------------------
@@ -341,7 +356,7 @@ def _run_sse() -> None:
             return response
 
     sse = SseServerTransport("/messages/")
-    _server = mcp._mcp_server
+    _server = mcp._lowlevel_server
     session_manager = StreamableHTTPSessionManager(app=_server, json_response=True)
 
     class _AlreadySent(Response):
